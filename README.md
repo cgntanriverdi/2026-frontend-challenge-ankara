@@ -23,6 +23,32 @@ To solve that, I built a desktop-first, single-screen investigation flow that co
 - deterministic person matching
 - a transparent suspicion scoring model
 
+## Running the Project
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Start the development server:
+
+```bash
+npm run dev
+```
+
+3. Open:
+
+```text
+http://localhost:3000
+```
+
+4. For a production check:
+
+```bash
+npm run build
+```
+
 ## Why I Built It This Way
 
 The challenge is small and time-boxed, so I intentionally optimized for clarity over overengineering.
@@ -214,32 +240,6 @@ This is the implementation path the project followed:
 
 I deliberately kept the stack minimal. No global state library, no UI kit, and no extra data libraries were needed for the scope of this challenge.
 
-## Running the Project
-
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Start the development server:
-
-```bash
-npm run dev
-```
-
-3. Open:
-
-```text
-http://localhost:3000
-```
-
-4. For a production check:
-
-```bash
-npm run build
-```
-
 ## Environment Notes
 
 The repository includes a working `.env.local` for direct local runs in the challenge environment.
@@ -273,7 +273,6 @@ These would increase complexity without improving the challenge outcome enough.
 
 If time allowed, the next improvements would be:
 
-- a compact summary strip for "last seen with", "primary suspect", and "cleared lead"
 - source health visibility in the UI
 - lightweight test coverage for derivation rules
 - better mobile-specific density tuning
