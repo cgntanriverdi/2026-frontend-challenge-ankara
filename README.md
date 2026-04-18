@@ -2,7 +2,7 @@
 
 ## Participant
 
-- Name: Ali Cagan Tanriverdi
+- Name: Ali Çağan Tanrıverdi
 
 ## Project Summary
 
