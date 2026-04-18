@@ -74,7 +74,8 @@ main {
 .top-console {
   display: grid;
   gap: 12px;
-  padding: 0;
+  justify-items: center;
+  padding: 20px 0 8px;
   border: 0;
   background: transparent;
   backdrop-filter: none;
@@ -129,6 +130,10 @@ main {
   gap: 16px;
 }
 
+.console-search {
+  width: min(100%, 960px);
+}
+
 .console-search input {
   width: 100%;
   min-height: 44px;
@@ -158,6 +163,11 @@ main {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.console-filter-row {
+  width: min(100%, 1120px);
+  justify-content: center;
 }
 
 .filter-chip,
