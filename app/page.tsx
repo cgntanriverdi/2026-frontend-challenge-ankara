@@ -30,12 +30,11 @@ const ROLE_LABELS: Record<PersonSummary["role"], string> = {
   cleared: "Cleared",
 };
 
-const SOURCE_TYPE_LABELS: Record<EvidenceRecord["sourceType"], string> = {
-  checkin: "Checkin",
-  message: "Message",
-  sighting: "Sighting",
-  note: "Note",
-  tip: "Tip",
+const DIRECTORY_ROLE_LABELS: Record<PersonSummary["role"], string> = {
+  "primary-suspect": "Suspect",
+  "person-of-interest": "POI",
+  witness: "Witness",
+  cleared: "Cleared",
 };
 
 const AVATAR_TONES = [
@@ -137,26 +136,51 @@ function AvatarStack({
 
 function EvidenceCard({
   record,
-  compact = false,
+  isExpanded,
+  onToggle,
 }: {
   record: EvidenceRecord;
-  compact?: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
+  const detailsId = `evidence-details-${record.id}`;
+
   return (
-    <article className={`evidence-card ${compact ? "evidence-card-compact" : ""}`}>
-      <div className="evidence-card-top">
-        <p className="evidence-time">{record.timestamp}</p>
-        <div className="evidence-badges">
-          <span className="evidence-badge">{SOURCE_TYPE_LABELS[record.sourceType]}</span>
-          <span className="evidence-badge evidence-badge-subtle">{record.confidenceLevel}</span>
+    <article className={`evidence-card ${isExpanded ? "evidence-card-expanded" : ""}`}>
+      <button
+        aria-controls={detailsId}
+        aria-expanded={isExpanded}
+        className="evidence-card-trigger"
+        onClick={onToggle}
+        type="button"
+      >
+        <span className="evidence-card-row">
+          <span className="evidence-card-summary">
+            <span className="evidence-title">{record.summary}</span>
+            <span className="evidence-summary-meta">
+              <span className="evidence-time">{record.timestamp}</span>
+              {record.people.length > 0 ? <AvatarStack people={record.people} size="small" /> : null}
+            </span>
+          </span>
+          <span className="evidence-expand-hint" aria-hidden="true">
+            <span>{isExpanded ? "Collapse" : "Expand"}</span>
+            <span className={`evidence-chevron ${isExpanded ? "evidence-chevron-expanded" : ""}`}>
+              ▾
+            </span>
+          </span>
+        </span>
+      </button>
+
+      <div className="evidence-card-body" id={detailsId}>
+        <div className="evidence-card-body-inner">
+          <p className="evidence-copy">{record.detailText || record.summary}</p>
+          <AvatarStack people={record.people} size="small" />
+          <div className="evidence-meta-group">
+            <p className="evidence-meta">Source: {record.provenance.sourceName}</p>
+            <p className="evidence-meta">Submission ID: {record.provenance.submissionId}</p>
+          </div>
         </div>
       </div>
-      <h4>{record.summary}</h4>
-      <p className="evidence-copy">{record.detailText || record.summary}</p>
-      <AvatarStack people={record.people} size="small" />
-      <p className="evidence-meta">
-        {record.locationName} | {record.provenance.sourceName} | Submission {record.provenance.submissionId}
-      </p>
     </article>
   );
 }
@@ -169,6 +193,8 @@ export default function HomePage() {
   const [selectedStopLocationKey, setSelectedStopLocationKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSourceFilter, setActiveSourceFilter] = useState<SourceFilterKey>("all");
+  const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
+  const hasAppliedDefaultSelection = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,14 +233,22 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!data?.investigation.defaultSelection.personSlug || selectedPersonSlug) {
+    if (
+      hasAppliedDefaultSelection.current ||
+      !data?.investigation.defaultSelection.personSlug
+    ) {
       return;
     }
 
+    hasAppliedDefaultSelection.current = true;
     setSelectedPersonSlug(data.investigation.defaultSelection.personSlug);
     setSearchQuery(data.investigation.defaultSelection.searchQuery);
     setActiveSourceFilter(data.investigation.defaultSelection.sourceFilter);
-  }, [data, selectedPersonSlug]);
+  }, [data]);
+
+  useEffect(() => {
+    setExpandedEvidenceId(null);
+  }, [selectedPersonSlug, selectedStopLocationKey, activeSourceFilter, searchQuery]);
 
   const investigation: InvestigationData | null = data?.investigation || null;
   const recordsById = useMemo(() => {
@@ -250,15 +284,11 @@ export default function HomePage() {
   };
 
   const selectedPerson = useMemo(() => {
-    if (!investigation) {
+    if (!investigation || !selectedPersonSlug) {
       return null;
     }
 
-    return (
-      investigation.people.find((person) => person.slug === selectedPersonSlug) ||
-      investigation.people[0] ||
-      null
-    );
+    return investigation.people.find((person) => person.slug === selectedPersonSlug) || null;
   }, [investigation, selectedPersonSlug]);
 
   const allTimelineStops = useMemo(() => {
@@ -391,6 +421,11 @@ export default function HomePage() {
   }, [investigation, selectedStop, activeSourceFilter, normalizedQuery]);
 
   const detailMode = selectedStop ? "stop" : "person";
+  const hasActiveFocus =
+    selectedPersonSlug.length > 0 ||
+    selectedStopLocationKey !== null ||
+    searchQuery.length > 0 ||
+    activeSourceFilter !== "all";
 
   return (
     <main>
@@ -433,10 +468,25 @@ export default function HomePage() {
               <aside className="operation-panel people-panel">
                 <div className="panel-header">
                   <div>
-                    <p className="panel-label">People</p>
-                    <h2>Suspects and witnesses</h2>
+                    <h2>People</h2>
                   </div>
-                  <span className="panel-meta">{visiblePeople.length} visible</span>
+                  <div className="panel-header-actions">
+                    {hasActiveFocus ? (
+                      <button
+                        className="clear-focus-button"
+                        onClick={() => {
+                          setSelectedPersonSlug("");
+                          setSelectedStopLocationKey(null);
+                          setSearchQuery("");
+                          setActiveSourceFilter("all");
+                        }}
+                        type="button"
+                      >
+                        Clear focus
+                      </button>
+                    ) : null}
+                    <span className="panel-meta panel-meta-nowrap">{visiblePeople.length} visible</span>
+                  </div>
                 </div>
 
                 <div className="panel-scroll person-list">
@@ -454,27 +504,16 @@ export default function HomePage() {
                         }}
                         type="button"
                       >
-                        <div className="person-row-top">
-                          <div className="person-row-title">
+                        <div className="person-row-main">
+                          <div className="person-row-left">
                             <AvatarStack people={[{ slug: person.slug, displayName: person.displayName }]} size="small" />
-                            <div>
-                              <h3>{person.displayName}</h3>
-                              <p className="person-row-subtitle">
-                                {person.lastSeenWithPodoAt
-                                  ? `${person.lastSeenWithPodoLocation} • ${person.lastSeenWithPodoAt}`
-                                  : "No direct linked moment with Podo"}
-                              </p>
-                            </div>
+                            <h3>{person.displayName}</h3>
                           </div>
-                          <span className={`role-pill role-pill-${person.role}`}>{ROLE_LABELS[person.role]}</span>
-                        </div>
-
-                        <div className="person-row-bottom">
-                          <p className="person-score">Score {person.suspicionScore}</p>
-                          <p className="person-row-reason">
-                            {person.keyReasons[0] ||
-                              person.counterEvidence[0] ||
-                              "Connected to the route without a strong suspicious clue."}
+                          <span className={`role-pill role-pill-${person.role}`}>
+                            {DIRECTORY_ROLE_LABELS[person.role]}
+                          </span>
+                          <p aria-label={`Suspicion score ${person.suspicionScore}`} className="person-score">
+                            {person.suspicionScore}
                           </p>
                         </div>
                       </button>
@@ -542,11 +581,10 @@ export default function HomePage() {
               <aside className="operation-panel detail-panel">
                 <div className="panel-header">
                   <div>
-                    <p className="panel-label">{detailMode === "stop" ? "Stop detail" : "Person detail"}</p>
                     <h2>
                       {detailMode === "stop"
                         ? selectedStop?.locationName || "Stop detail"
-                        : selectedPerson?.displayName || "Person detail"}
+                        : selectedPerson?.displayName || "Overview"}
                     </h2>
                   </div>
                   {detailMode === "stop" ? (
@@ -557,19 +595,36 @@ export default function HomePage() {
                     >
                       Back to person
                     </button>
-                  ) : (
+                  ) : selectedPerson ? (
                     <span className="panel-meta">
                       {selectedPerson ? ROLE_LABELS[selectedPerson.role] : "No selection"}
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="panel-scroll detail-scroll">
                   {detailMode === "stop" && selectedStop ? (
                     <div className="detail-stack">
-                      <section className="detail-section detail-section-elevated">
-                        <p className="detail-copy">{formatStopRange(selectedStop)}</p>
-                        <AvatarStack people={selectedStop.people} />
+                      <section className="detail-section detail-section-elevated detail-stop-summary">
+                        <div className="detail-stop-grid">
+                          <div className="detail-stop-block">
+                            <p className="detail-kicker">Start</p>
+                            <p className="detail-stop-time">{selectedStop.startAt || "Unknown"}</p>
+                          </div>
+                          <div className="detail-stop-block">
+                            <p className="detail-kicker">End</p>
+                            <p className="detail-stop-time">{selectedStop.endAt || "Unknown"}</p>
+                          </div>
+                        </div>
+
+                        <div className="detail-stop-block">
+                          <p className="detail-kicker">People at this stop</p>
+                          {selectedStop.people.length > 0 ? (
+                            <AvatarStack people={selectedStop.people} />
+                          ) : (
+                            <p className="empty-text">No linked people for this stop.</p>
+                          )}
+                        </div>
                       </section>
 
                       <section className="detail-section">
@@ -579,7 +634,16 @@ export default function HomePage() {
                         ) : (
                           <div className="evidence-list">
                             {selectedStopRecords.map((record) => (
-                              <EvidenceCard key={record.id} record={record} />
+                              <EvidenceCard
+                                isExpanded={expandedEvidenceId === record.id}
+                                key={record.id}
+                                onToggle={() =>
+                                  setExpandedEvidenceId((current) =>
+                                    current === record.id ? null : record.id,
+                                  )
+                                }
+                                record={record}
+                              />
                             ))}
                           </div>
                         )}
@@ -587,19 +651,7 @@ export default function HomePage() {
                     </div>
                   ) : selectedPerson ? (
                     <div className="detail-stack">
-                      <section className="detail-section detail-section-elevated">
-                        <div className="detail-person-header">
-                          <AvatarStack
-                            people={[{ slug: selectedPerson.slug, displayName: selectedPerson.displayName }]}
-                          />
-                          <div>
-                            <span className={`role-pill role-pill-${selectedPerson.role}`}>
-                              {ROLE_LABELS[selectedPerson.role]}
-                            </span>
-                            <p className="detail-score">Suspicion score: {selectedPerson.suspicionScore}</p>
-                          </div>
-                        </div>
-
+                      <section className="detail-section detail-person-summary">
                         <div className="detail-chip-group">
                           {selectedPerson.aliases.map((alias) => (
                             <span className="detail-chip" key={`${selectedPerson.slug}-${alias}`}>
@@ -608,9 +660,15 @@ export default function HomePage() {
                           ))}
                         </div>
 
+                        <div className="detail-person-facts">
+                          <p className="detail-score">Suspicion score: {selectedPerson.suspicionScore}</p>
+                          <p className="detail-score">
+                            Direct Podo links: {selectedPerson.directPodoTouches}
+                          </p>
+                        </div>
+
                         <p className="detail-copy">
-                          Sources: {selectedPerson.sourceCoverage.join(", ")} | Direct Podo links:{" "}
-                          {selectedPerson.directPodoTouches}
+                          Sources: {selectedPerson.sourceCoverage.join(", ")}
                         </p>
                       </section>
 
@@ -658,14 +716,28 @@ export default function HomePage() {
                         ) : (
                           <div className="evidence-list">
                             {selectedPersonRecords.map((record) => (
-                              <EvidenceCard key={record.id} record={record} />
+                              <EvidenceCard
+                                isExpanded={expandedEvidenceId === record.id}
+                                key={record.id}
+                                onToggle={() =>
+                                  setExpandedEvidenceId((current) =>
+                                    current === record.id ? null : record.id,
+                                  )
+                                }
+                                record={record}
+                              />
                             ))}
                           </div>
                         )}
                       </section>
                     </div>
                   ) : (
-                    <p className="empty-text">No detail context is selected.</p>
+                    <section className="detail-empty-state">
+                      <p className="detail-copy">
+                        Select a suspect from the list to filter the map, or click a node on the
+                        route to inspect evidence.
+                      </p>
+                    </section>
                   )}
                 </div>
               </aside>
