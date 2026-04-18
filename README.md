@@ -3,7 +3,7 @@
 ## User Information
 Please fill in your information after forking this repository:
 
-- **Name**: [Your Name]
+- **Name**: Ali Çağan Tanrıverdi
 
 ## Project Description
 [Add a brief description of your project here]
