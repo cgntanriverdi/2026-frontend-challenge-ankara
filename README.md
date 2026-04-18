@@ -6,7 +6,7 @@ Please fill in your information after forking this repository:
 - **Name**: Ali Çağan Tanrıverdi
 
 ## Project Description
-This is a minimal MVP focused only on fetching the five Jotform data sources for the Missing Podo challenge. It does not try to solve record linking or investigation logic yet. It only proves that the API data can be fetched, normalized lightly, and displayed clearly.
+This app turns the five Jotform data sources into a single investigation dashboard for the Missing Podo challenge. It still fetches the raw source data, but now adds deterministic person linking, a Podo route timeline, and a simple suspicion model to guide the user toward the strongest lead without overengineering the stack.
 
 ## Getting Started
 1. Install dependencies:
@@ -44,13 +44,21 @@ npm run dev
   - question objects into arrays
   - answer objects into arrays
   - count from `submissions.length`
+- Builds one investigation screen with:
+  - summary findings
+  - suspect list
+  - Podo route timeline
+  - linked evidence detail panel
+- Uses deterministic alias handling for dataset variants like `Kağan`, `Kagan`, and `Kağan A.`
+- Uses readable suspicion rules instead of fuzzy matching
 - Handles loading and error states
-- Exposes a simple internal endpoint at `/api/case-data`
+- Exposes a single internal endpoint at `/api/case-data`
 
 ## Notes
 - Form metadata count is intentionally not used.
-- The app keeps the data close to the raw Jotform response shape on purpose.
-- This is the fetch-first phase of the challenge.
+- Raw source payloads are still returned for confidence and debugging.
+- The transformation layer is intentionally thin and local to the challenge dataset.
+- This stays focused on the core investigation flow. Map and extra bonus features are deferred.
 
 # 🚀 Challenge Duyurusu
 
