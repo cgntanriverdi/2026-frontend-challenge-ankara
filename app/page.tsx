@@ -526,7 +526,9 @@ export default function HomePage() {
                 aria-label={selectedPerson ? `Podo route focused on ${selectedPerson.displayName}` : "Podo route"}
                 className="operation-panel route-panel"
               >
-                <h2 className="visually-hidden">Podo route map</h2>
+                <div className="route-panel-header">
+                  <h2 className="route-panel-title">Timeline of Podo</h2>
+                </div>
                 <div className="route-map-shell">
                   <div aria-hidden="true" className="route-map-grid" />
 

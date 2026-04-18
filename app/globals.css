@@ -413,6 +413,18 @@ main {
     #0f172a;
 }
 
+.route-panel-header {
+  margin-bottom: 12px;
+}
+
+.route-panel-title {
+  margin: 0;
+  color: #e5eefc;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .route-map-grid,
 .route-map-svg {
   position: absolute;
