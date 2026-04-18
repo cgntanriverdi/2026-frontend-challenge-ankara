@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type { CaseDataResponse } from "../lib/case-data";
 import {
   buildTimelineStops,
@@ -47,6 +47,26 @@ const AVATAR_TONES = [
   { backgroundColor: "#1d2a1f", borderColor: "#166534", color: "#86efac" },
 ];
 
+type RouteStopLayout = {
+  locationKey: string;
+  x: number;
+  y: number;
+  anchor: "top" | "bottom" | "left" | "right";
+};
+
+const ROUTE_STOP_LAYOUT: RouteStopLayout[] = [
+  { locationKey: "CerModern", x: 12, y: 72, anchor: "top" },
+  { locationKey: "Tunalı Hilmi Caddesi", x: 28, y: 58, anchor: "bottom" },
+  { locationKey: "Kuğulu Park", x: 45, y: 43, anchor: "top" },
+  { locationKey: "Seğmenler Parkı", x: 60, y: 56, anchor: "bottom" },
+  { locationKey: "Atakule", x: 76, y: 36, anchor: "left" },
+  { locationKey: "Ankara Kalesi", x: 90, y: 18, anchor: "bottom" },
+];
+
+const ROUTE_STOP_LAYOUT_BY_KEY = new Map(
+  ROUTE_STOP_LAYOUT.map((layout) => [layout.locationKey, layout]),
+);
+
 function getInitials(name: string) {
   return name
     .split(/\s+/)
@@ -67,7 +87,24 @@ function getAvatarTone(slug: string) {
 }
 
 function formatStopRange(stop: TimelineStop) {
+  if (!stop.startAt && !stop.endAt) {
+    return "Route stop";
+  }
+
   return stop.startAt === stop.endAt ? stop.startAt : `${stop.startAt} → ${stop.endAt}`;
+}
+
+function createEmptyStop(locationKey: string): TimelineStop {
+  return {
+    locationKey,
+    locationName: locationKey,
+    coordinates: "",
+    startAt: "",
+    endAt: "",
+    people: [],
+    isCriticalStop: locationKey === "Ankara Kalesi",
+    entries: [],
+  };
 }
 
 function AvatarStack({
@@ -290,6 +327,35 @@ export default function HomePage() {
     return buildTimelineStops(filteredRecords, investigation.summary.routeEnd?.recordId || null);
   }, [activeSourceFilter, investigation, normalizedQuery, selectedPerson]);
 
+  const routeMapStops = useMemo(() => {
+    if (!investigation) {
+      return [];
+    }
+
+    const allStopsByLocation = new Map(
+      allTimelineStops.map((stop) => [stop.locationKey, stop]),
+    );
+    const filteredStopsByLocation = new Map(
+      visibleTimelineStops.map((stop) => [stop.locationKey, stop]),
+    );
+
+    return ROUTE_STOP_LAYOUT.map((layout) => {
+      const baseStop = allStopsByLocation.get(layout.locationKey) || createEmptyStop(layout.locationKey);
+      const filteredStop = filteredStopsByLocation.get(layout.locationKey);
+
+      return {
+        ...baseStop,
+        people: filteredStop?.people || [],
+        entries: filteredStop?.entries || [],
+      };
+    });
+  }, [allTimelineStops, investigation, visibleTimelineStops]);
+
+  const routePolylinePoints = useMemo(
+    () => ROUTE_STOP_LAYOUT.map((layout) => `${layout.x},${layout.y}`).join(" "),
+    [],
+  );
+
   const selectedStop = useMemo(() => {
     if (!selectedStopLocationKey) {
       return null;
@@ -417,66 +483,59 @@ export default function HomePage() {
                 </div>
               </aside>
 
-              <section className="operation-panel route-panel">
-                <div className="panel-header">
-                  <div>
-                    <p className="panel-label">Metro line</p>
-                    <h2>Podo route timeline</h2>
-                  </div>
-                  <span className="panel-meta">
-                    {selectedPerson ? `Focus: ${selectedPerson.displayName}` : "All route stops"}
-                  </span>
-                </div>
+              <section
+                aria-label={selectedPerson ? `Podo route focused on ${selectedPerson.displayName}` : "Podo route"}
+                className="operation-panel route-panel"
+              >
+                <h2 className="visually-hidden">Podo route map</h2>
+                <div className="route-map-shell">
+                  <div aria-hidden="true" className="route-map-grid" />
 
-                <div className="panel-scroll metro-list">
-                  {visibleTimelineStops.length === 0 ? (
-                    <p className="empty-text">No timeline stops match the current filters.</p>
-                  ) : (
-                    visibleTimelineStops.map((stop) => {
-                      const dimmed =
-                        selectedPersonSlug.length > 0 &&
-                        !stop.people.some((person) => person.slug === selectedPersonSlug);
-                      const isSelected = selectedStopLocationKey === stop.locationKey;
-                      const previewEntry = stop.entries[0];
+                  <svg
+                    aria-hidden="true"
+                    className="route-map-svg"
+                    preserveAspectRatio="none"
+                    viewBox="0 0 100 100"
+                  >
+                    <polyline className="route-map-line-glow" points={routePolylinePoints} />
+                    <polyline className="route-map-line" points={routePolylinePoints} />
+                  </svg>
 
-                      return (
-                        <button
-                          aria-pressed={isSelected}
-                          className={`metro-stop ${isSelected ? "metro-stop-active" : ""} ${dimmed ? "metro-stop-dimmed" : ""} ${stop.isCriticalStop ? "metro-stop-critical" : ""}`}
-                          key={`${stop.locationKey}-${stop.startAt}`}
-                          onClick={() => setSelectedStopLocationKey(stop.locationKey)}
-                          type="button"
-                        >
-                          <span className="metro-rail" aria-hidden="true">
-                            <span
-                              className={`metro-bubble ${stop.isCriticalStop ? "metro-bubble-critical" : ""}`}
-                            />
-                          </span>
+                  {routeMapStops.map((stop) => {
+                    const layout = ROUTE_STOP_LAYOUT_BY_KEY.get(stop.locationKey);
 
-                          <div className="metro-content">
-                            <div className="metro-top-row">
-                              <div>
-                                <p className="metro-label">Stop</p>
-                                <p className="metro-title">{stop.locationName}</p>
-                              </div>
-                              <p className="metro-range">{formatStopRange(stop)}</p>
-                            </div>
+                    if (!layout) {
+                      return null;
+                    }
 
-                            <div className="metro-meta-row">
-                              <AvatarStack people={stop.people} size="small" />
-                              <p className="metro-count">
-                                {stop.entries.length} evidence item{stop.entries.length > 1 ? "s" : ""}
-                              </p>
-                            </div>
+                    const isSelected = selectedStopLocationKey === stop.locationKey;
+                    const dimmed =
+                      !isSelected &&
+                      selectedPersonSlug.length > 0 &&
+                      !stop.people.some((person) => person.slug === selectedPersonSlug);
+                    const stopStyle = {
+                      "--stop-left": `${layout.x}%`,
+                      "--stop-top": `${layout.y}%`,
+                    } as CSSProperties;
 
-                            {previewEntry ? (
-                              <p className="metro-preview">{previewEntry.summary}</p>
-                            ) : null}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
+                    return (
+                      <button
+                        aria-pressed={isSelected}
+                        className={`route-stop route-stop-anchor-${layout.anchor} ${isSelected ? "route-stop-active" : ""} ${dimmed ? "route-stop-dimmed" : ""} ${stop.isCriticalStop ? "route-stop-critical" : ""}`}
+                        key={stop.locationKey}
+                        onClick={() => setSelectedStopLocationKey(stop.locationKey)}
+                        style={stopStyle}
+                        type="button"
+                      >
+                        <span className="route-stop-pin" aria-hidden="true" />
+
+                        <span className="route-stop-card">
+                          <span className="route-stop-name">{stop.locationName}</span>
+                          {stop.people.length > 0 ? <AvatarStack people={stop.people} size="small" /> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
 

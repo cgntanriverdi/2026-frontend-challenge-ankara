@@ -56,7 +56,6 @@ main {
 .operation-panel,
 .status-banner,
 .person-row,
-.metro-stop,
 .evidence-card,
 .clear-stop-button,
 .detail-chip,
@@ -82,8 +81,7 @@ main {
 }
 
 .console-kicker,
-.panel-label,
-.metro-label {
+.panel-label {
   margin: 0;
   color: #a78bfa;
   font-size: 0.75rem;
@@ -95,7 +93,7 @@ main {
 .panel-header h2,
 .person-row h3,
 .evidence-card h4,
-.metro-title {
+.route-stop-name {
   margin: 0;
 }
 
@@ -110,9 +108,6 @@ main {
 .evidence-meta,
 .evidence-time,
 .empty-text,
-.metro-range,
-.metro-count,
-.metro-preview,
 .footer-note {
   margin: 0;
   color: #94a3b8;
@@ -156,9 +151,7 @@ main {
 .evidence-badges,
 .evidence-card-top,
 .detail-person-header,
-.detail-chip-group,
-.metro-top-row,
-.metro-meta-row {
+.detail-chip-group {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -209,14 +202,18 @@ main {
 
 .operation-grid {
   display: grid;
-  grid-template-columns: 280px minmax(520px, 1fr) 360px;
-  gap: 24px;
+  grid-template-columns: 248px minmax(640px, 1fr) 320px;
+  gap: 20px;
   align-items: start;
 }
 
 .operation-panel {
   min-height: 0;
   padding: 16px;
+}
+
+.route-panel {
+  padding: 12px;
 }
 
 .people-panel,
@@ -340,130 +337,214 @@ main {
   font-size: 0.66rem;
 }
 
-.metro-list {
-  gap: 12px;
+.route-map-shell {
+  position: relative;
+  min-height: 500px;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 28%),
+    radial-gradient(circle at left center, rgba(37, 99, 235, 0.12), transparent 34%),
+    #0f172a;
 }
 
-.metro-stop {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 12px;
+.route-map-grid,
+.route-map-svg {
+  position: absolute;
+  inset: 0;
+}
+
+.route-map-grid {
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.7));
+}
+
+.route-map-svg {
+  pointer-events: none;
   width: 100%;
+  height: 100%;
+}
+
+.route-map-line-glow,
+.route-map-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.route-map-line-glow {
+  stroke: rgba(56, 189, 248, 0.35);
+  stroke-width: 4.25;
+}
+
+.route-map-line {
+  stroke: #38bdf8;
+  stroke-width: 1.8;
+}
+
+.route-stop {
+  position: absolute;
+  left: var(--stop-left);
+  top: var(--stop-top);
+  width: 0;
+  height: 0;
   padding: 0;
-  border: 1px solid #1e293b;
-  background: linear-gradient(180deg, rgba(17, 28, 51, 0.96), rgba(15, 23, 42, 0.92));
+  border: 0;
+  background: transparent;
   color: inherit;
   cursor: pointer;
-  text-align: left;
-  overflow: hidden;
+  transform: translate(-50%, -50%);
   transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    opacity 140ms ease;
+    opacity 140ms ease,
+    filter 140ms ease;
 }
 
-.metro-stop:hover {
-  border-color: #475569;
+.route-stop:hover {
+  filter: brightness(1.08);
 }
 
-.metro-stop-dimmed {
+.route-stop-dimmed {
   opacity: 0.3;
 }
 
-.metro-stop-dimmed:hover,
-.metro-stop-dimmed:focus-visible {
-  opacity: 0.6;
+.route-stop-dimmed:hover,
+.route-stop-dimmed:focus-visible {
+  opacity: 1;
 }
 
-.metro-stop-active {
-  border-color: #38bdf8;
-  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.3);
+.route-stop-active {
+  z-index: 3;
 }
 
-.metro-stop-critical {
-  border-color: rgba(239, 68, 68, 0.45);
-  background: linear-gradient(180deg, rgba(45, 18, 21, 0.94), rgba(15, 23, 42, 0.92));
+.route-stop:focus-visible {
+  outline: none;
 }
 
-.metro-rail {
+.route-stop-pin {
   position: relative;
-  display: flex;
-  align-items: center;
+  z-index: 2;
+  display: block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(125, 211, 252, 0.45);
+  border-radius: 9999px;
+  background: #111c33;
+  box-shadow:
+    0 0 0 4px rgba(2, 6, 23, 0.86),
+    0 0 18px rgba(56, 189, 248, 0.2);
+}
+
+.route-stop-card {
+  position: absolute;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-width: 176px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  pointer-events: none;
+}
+
+.route-stop-anchor-top .route-stop-card {
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  justify-items: center;
+  text-align: center;
+}
+
+.route-stop-anchor-bottom .route-stop-card {
+  left: 50%;
+  top: 28px;
+  transform: translateX(-50%);
+  justify-items: center;
+  text-align: center;
+}
+
+.route-stop-anchor-left .route-stop-card {
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  justify-items: end;
+  text-align: right;
+}
+
+.route-stop-anchor-right .route-stop-card {
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.route-stop-name {
+  display: block;
+  color: #e5eefc;
+  font-size: 0.96rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow:
+    0 0 12px rgba(2, 6, 23, 0.95),
+    0 0 18px rgba(2, 6, 23, 0.85);
+}
+
+.route-stop .avatar-stack-small {
+  gap: 4px;
+}
+
+.route-stop-anchor-top .avatar-stack,
+.route-stop-anchor-bottom .avatar-stack {
   justify-content: center;
 }
 
-.metro-rail::before {
-  content: "";
-  position: absolute;
-  top: -12px;
-  bottom: -12px;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.2), rgba(148, 163, 184, 0.35));
+.route-stop-anchor-left .avatar-stack {
+  justify-content: flex-end;
 }
 
-.metro-bubble {
-  position: relative;
-  z-index: 1;
-  width: 20px;
-  height: 20px;
-  border-radius: 9999px;
-  border: 2px solid rgba(148, 163, 184, 0.5);
-  background: #0f172a;
+.route-stop-active .route-stop-pin {
+  border-color: #38bdf8;
+  box-shadow:
+    0 0 0 4px rgba(14, 116, 144, 0.28),
+    0 0 18px rgba(56, 189, 248, 0.36);
 }
 
-.metro-bubble-critical {
+.route-stop:focus-visible .route-stop-pin {
+  border-color: #c4b5fd;
+  box-shadow:
+    0 0 0 4px rgba(167, 139, 250, 0.22),
+    0 0 18px rgba(196, 181, 253, 0.28);
+}
+
+.route-stop-active .route-stop-name,
+.route-stop:focus-visible .route-stop-name {
+  color: #f8fbff;
+  text-shadow:
+    0 0 12px rgba(56, 189, 248, 0.28),
+    0 0 18px rgba(2, 6, 23, 0.95);
+}
+
+.route-stop-critical .route-stop-pin {
   border-color: #ef4444;
   background: #ef4444;
+  box-shadow:
+    0 0 0 4px rgba(69, 10, 10, 0.4),
+    0 0 18px rgba(239, 68, 68, 0.34);
 }
 
-.metro-bubble-critical::after {
+.route-stop-critical .route-stop-pin::after {
   content: "";
   position: absolute;
   inset: -7px;
-  border: 1px solid rgba(239, 68, 68, 0.6);
+  border: 1px solid rgba(239, 68, 68, 0.7);
   border-radius: 9999px;
   animation: critical-pulse 1.8s ease-out infinite;
-}
-
-.metro-content {
-  display: grid;
-  gap: 12px;
-  padding: 16px 16px 16px 0;
-}
-
-.metro-top-row {
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.metro-top-row > div:first-child {
-  display: grid;
-  gap: 6px;
-}
-
-.metro-title {
-  color: #e2e8f0;
-  font-size: 1.06rem;
-  font-weight: 700;
-}
-
-.metro-range {
-  font-size: 0.84rem;
-}
-
-.metro-meta-row {
-  justify-content: space-between;
-}
-
-.metro-count {
-  font-size: 0.84rem;
-}
-
-.metro-preview {
-  color: #cbd5e1;
-  font-size: 0.92rem;
 }
 
 .detail-scroll {
@@ -601,7 +682,7 @@ main {
 
 @media (max-width: 1200px) {
   .operation-grid {
-    grid-template-columns: 260px minmax(0, 1fr) 320px;
+    grid-template-columns: 228px minmax(0, 1fr) 296px;
   }
 }
 
@@ -624,6 +705,10 @@ main {
     overflow: visible;
     padding-right: 0;
   }
+
+  .route-map-shell {
+    min-height: 420px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -631,8 +716,12 @@ main {
     padding: 16px;
   }
 
-  .metro-stop {
-    grid-template-columns: 28px minmax(0, 1fr);
+  .route-map-shell {
+    min-height: 320px;
+  }
+
+  .route-stop-card {
+    max-width: 132px;
   }
 
   .metro-content {
@@ -650,7 +739,7 @@ main {
     scroll-behavior: auto !important;
   }
 
-  .metro-bubble-critical::after {
+  .route-stop-critical .route-stop-pin::after {
     animation: none;
     opacity: 1;
     transform: none;
