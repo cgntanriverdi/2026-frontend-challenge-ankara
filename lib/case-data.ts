@@ -1,3 +1,6 @@
+import { buildInvestigationData } from "./investigation";
+import type { InvestigationData } from "./investigation";
+
 export type CaseSourceDefinition = {
   sourceName: string;
   formId: string;
@@ -54,6 +57,7 @@ export type CaseDataResponse = {
     baseUrl: string;
     fetchedAt: string;
   };
+  investigation: InvestigationData;
 };
 
 type JotformEnvelope<T> = {
@@ -191,6 +195,6 @@ export async function getCaseData(): Promise<CaseDataResponse> {
       baseUrl: getBaseUrl(),
       fetchedAt: new Date().toISOString(),
     },
+    investigation: buildInvestigationData(sources),
   };
 }
-
