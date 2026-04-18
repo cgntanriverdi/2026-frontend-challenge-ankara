@@ -6,10 +6,51 @@ Please fill in your information after forking this repository:
 - **Name**: Ali Çağan Tanrıverdi
 
 ## Project Description
-[Add a brief description of your project here]
+This is a minimal MVP focused only on fetching the five Jotform data sources for the Missing Podo challenge. It does not try to solve record linking or investigation logic yet. It only proves that the API data can be fetched, normalized lightly, and displayed clearly.
 
 ## Getting Started
-[Add instructions for setting up and running the project]
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create `.env.local` from `.env.example` and set:
+
+```bash
+JOTFORM_API_KEY=your_jotform_api_key
+JOTFORM_API_BASE_URL=https://api.jotform.com
+```
+
+3. Start the dev server:
+
+```bash
+npm run dev
+```
+
+4. Open [http://localhost:3000](http://localhost:3000)
+
+## What This MVP Includes
+- Fetches only these 5 sources:
+  - Checkins
+  - Messages
+  - Sightings
+  - Personal Notes
+  - Anonymous Tips
+- Uses only:
+  - `GET /form/{id}/questions`
+  - `GET /form/{id}/submissions?offset=0&limit=1000`
+- Normalizes:
+  - question objects into arrays
+  - answer objects into arrays
+  - count from `submissions.length`
+- Handles loading and error states
+- Exposes a simple internal endpoint at `/api/case-data`
+
+## Notes
+- Form metadata count is intentionally not used.
+- The app keeps the data close to the raw Jotform response shape on purpose.
+- This is the fetch-first phase of the challenge.
 
 # 🚀 Challenge Duyurusu
 

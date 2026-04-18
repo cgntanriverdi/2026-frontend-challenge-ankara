@@ -1,0 +1,32 @@
+{
+  "name": "2026-frontend-challenge-ankara",
+  "version": "1.0.0",
+  "description": "Minimal Jotform MVP fetch dashboard for the Missing Podo challenge.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cgntanriverdi/2026-frontend-challenge-ankara.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cgntanriverdi/2026-frontend-challenge-ankara/issues"
+  },
+  "homepage": "https://github.com/cgntanriverdi/2026-frontend-challenge-ankara#readme",
+  "dependencies": {
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  }
+}
