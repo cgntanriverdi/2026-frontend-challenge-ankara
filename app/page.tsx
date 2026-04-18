@@ -11,7 +11,6 @@ import {
   type LinkedPersonRef,
   type PersonSummary,
   type SourceFilterKey,
-  type SourceHealth,
   type TimelineStop,
 } from "../lib/investigation";
 
@@ -69,25 +68,6 @@ function getAvatarTone(slug: string) {
 
 function formatStopRange(stop: TimelineStop) {
   return stop.startAt === stop.endAt ? stop.startAt : `${stop.startAt} → ${stop.endAt}`;
-}
-
-function SourceHealthPill({ source }: { source: SourceHealth }) {
-  const label =
-    source.status === "error"
-      ? "Source error"
-      : source.status === "empty"
-        ? "Empty"
-        : `${source.count} records`;
-
-  return (
-    <article
-      className={`health-pill ${source.status === "error" ? "health-pill-error" : ""}`}
-      aria-label={`${source.sourceName}: ${label}`}
-    >
-      <span className="health-pill-name">{source.sourceName}</span>
-      <span className="health-pill-value">{label}</span>
-    </article>
-  );
 }
 
 function AvatarStack({
@@ -350,46 +330,28 @@ export default function HomePage() {
     <main>
       <div className="page-shell operation-shell">
         <section className="top-console">
-          <div className="top-console-brand">
-            <p className="console-kicker">Missing Podo</p>
-            <h1>Investigation Console</h1>
-            <p className="console-copy">
-              Track the route, narrow the suspect, and inspect evidence without leaving the screen.
-            </p>
-          </div>
+          <label className="console-search">
+            <span className="visually-hidden">Search evidence</span>
+            <input
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by person, location, or clue"
+              type="search"
+              value={searchQuery}
+            />
+          </label>
 
-          <div className="top-console-tools">
-            <label className="console-search">
-              <span className="visually-hidden">Search evidence</span>
-              <input
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by person, location, or clue"
-                type="search"
-                value={searchQuery}
-              />
-            </label>
-
-            <div className="console-filter-row" role="toolbar" aria-label="Source filters">
-              {SOURCE_FILTERS.map((filter) => (
-                <button
-                  aria-pressed={filter.key === activeSourceFilter}
-                  className={`filter-chip ${filter.key === activeSourceFilter ? "filter-chip-active" : ""}`}
-                  key={filter.key}
-                  onClick={() => setActiveSourceFilter(filter.key)}
-                  type="button"
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-
-            {investigation ? (
-              <div className="health-pill-row" aria-label="Source health">
-                {investigation.sourceHealth.map((source) => (
-                  <SourceHealthPill key={source.sourceName} source={source} />
-                ))}
-              </div>
-            ) : null}
+          <div className="console-filter-row" role="toolbar" aria-label="Source filters">
+            {SOURCE_FILTERS.map((filter) => (
+              <button
+                aria-pressed={filter.key === activeSourceFilter}
+                className={`filter-chip ${filter.key === activeSourceFilter ? "filter-chip-active" : ""}`}
+                key={filter.key}
+                onClick={() => setActiveSourceFilter(filter.key)}
+                type="button"
+              >
+                {filter.label}
+              </button>
+            ))}
           </div>
         </section>
 
