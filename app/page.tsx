@@ -8,8 +8,11 @@ import {
   normalizeInvestigationText,
   type EvidenceRecord,
   type InvestigationData,
+  type LinkedPersonRef,
   type PersonSummary,
   type SourceFilterKey,
+  type SourceHealth,
+  type TimelineStop,
 } from "../lib/investigation";
 
 const SOURCE_FILTERS: Array<{ key: SourceFilterKey; label: string }> = [
@@ -36,59 +39,107 @@ const SOURCE_TYPE_LABELS: Record<EvidenceRecord["sourceType"], string> = {
   tip: "Tip",
 };
 
-function findPersonDisplayName(people: PersonSummary[], slug: string | null) {
-  if (!slug) {
-    return "Unavailable";
-  }
+const AVATAR_TONES = [
+  { backgroundColor: "#10243f", borderColor: "#164e63", color: "#7dd3fc" },
+  { backgroundColor: "#1b1f3b", borderColor: "#3730a3", color: "#c4b5fd" },
+  { backgroundColor: "#17262c", borderColor: "#0f766e", color: "#5eead4" },
+  { backgroundColor: "#2b1c31", borderColor: "#9d174d", color: "#f9a8d4" },
+  { backgroundColor: "#2b2115", borderColor: "#b45309", color: "#fbbf24" },
+  { backgroundColor: "#1d2a1f", borderColor: "#166534", color: "#86efac" },
+];
 
-  return people.find((person) => person.slug === slug)?.displayName || "Unavailable";
+function getInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase("tr-TR") || "")
+    .join("");
 }
 
-function SummaryCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
+function getAvatarTone(slug: string) {
+  let hash = 0;
+
+  for (const character of slug) {
+    hash = (hash * 31 + character.charCodeAt(0)) % 2147483647;
+  }
+
+  return AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length];
+}
+
+function formatStopRange(stop: TimelineStop) {
+  return stop.startAt === stop.endAt ? stop.startAt : `${stop.startAt} → ${stop.endAt}`;
+}
+
+function SourceHealthPill({ source }: { source: SourceHealth }) {
+  const label =
+    source.status === "error"
+      ? "Source error"
+      : source.status === "empty"
+        ? "Empty"
+        : `${source.count} records`;
+
   return (
-    <article className="summary-card">
-      <p className="eyebrow">{label}</p>
-      <h2>{value}</h2>
-      <p>{detail}</p>
+    <article
+      className={`health-pill ${source.status === "error" ? "health-pill-error" : ""}`}
+      aria-label={`${source.sourceName}: ${label}`}
+    >
+      <span className="health-pill-name">{source.sourceName}</span>
+      <span className="health-pill-value">{label}</span>
     </article>
   );
 }
 
-function EvidenceItem({
-  record,
-  dimmed,
+function AvatarStack({
+  people,
+  size = "medium",
 }: {
-  record: EvidenceRecord;
-  dimmed?: boolean;
+  people: LinkedPersonRef[];
+  size?: "medium" | "small";
 }) {
   return (
-    <article
-      className={`timeline-item ${record.relevance === "suspect-clue" ? "timeline-item-clue" : ""} ${dimmed ? "timeline-item-dimmed" : ""}`}
-    >
-      <div className="timeline-item-top">
-        <p className="timeline-time">{record.timestamp}</p>
-        <div className="timeline-badges">
-          <span className="timeline-badge">{SOURCE_TYPE_LABELS[record.sourceType]}</span>
-          <span className="timeline-badge subtle">{record.confidenceLevel}</span>
+    <div className={`avatar-stack avatar-stack-${size}`}>
+      {people.map((person) => {
+        const tone = getAvatarTone(person.slug);
+
+        return (
+          <span
+            aria-label={person.displayName}
+            className={`person-avatar person-avatar-${size}`}
+            key={`${person.slug}-${size}`}
+            style={tone}
+            title={person.displayName}
+          >
+            {getInitials(person.displayName)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function EvidenceCard({
+  record,
+  compact = false,
+}: {
+  record: EvidenceRecord;
+  compact?: boolean;
+}) {
+  return (
+    <article className={`evidence-card ${compact ? "evidence-card-compact" : ""}`}>
+      <div className="evidence-card-top">
+        <p className="evidence-time">{record.timestamp}</p>
+        <div className="evidence-badges">
+          <span className="evidence-badge">{SOURCE_TYPE_LABELS[record.sourceType]}</span>
+          <span className="evidence-badge evidence-badge-subtle">{record.confidenceLevel}</span>
         </div>
       </div>
       <h4>{record.summary}</h4>
-      <p className="timeline-copy">{record.detailText || record.summary}</p>
-      <div className="person-chip-row">
-        {record.people.map((person) => (
-          <span className="person-chip" key={`${record.id}-${person.slug}`}>
-            {person.displayName}
-          </span>
-        ))}
-      </div>
+      <p className="evidence-copy">{record.detailText || record.summary}</p>
+      <AvatarStack people={record.people} size="small" />
+      <p className="evidence-meta">
+        {record.locationName} | {record.provenance.sourceName} | Submission {record.provenance.submissionId}
+      </p>
     </article>
   );
 }
@@ -98,6 +149,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPersonSlug, setSelectedPersonSlug] = useState("");
+  const [selectedStopLocationKey, setSelectedStopLocationKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSourceFilter, setActiveSourceFilter] = useState<SourceFilterKey>("all");
 
@@ -192,6 +244,17 @@ export default function HomePage() {
     );
   }, [investigation, selectedPersonSlug]);
 
+  const allTimelineStops = useMemo(() => {
+    if (!investigation) {
+      return [];
+    }
+
+    return buildTimelineStops(
+      investigation.evidenceRecords,
+      investigation.summary.routeEnd?.recordId || null,
+    );
+  }, [investigation]);
+
   const visiblePeople = useMemo(() => {
     if (!investigation) {
       return [];
@@ -247,6 +310,17 @@ export default function HomePage() {
     return buildTimelineStops(filteredRecords, investigation.summary.routeEnd?.recordId || null);
   }, [activeSourceFilter, investigation, normalizedQuery, selectedPerson]);
 
+  const selectedStop = useMemo(() => {
+    if (!selectedStopLocationKey) {
+      return null;
+    }
+
+    return (
+      allTimelineStops.find((stop) => stop.locationKey === selectedStopLocationKey) ||
+      null
+    );
+  }, [allTimelineStops, selectedStopLocationKey]);
+
   const selectedPersonRecords = useMemo(() => {
     if (!selectedPerson) {
       return [];
@@ -259,273 +333,320 @@ export default function HomePage() {
       .sort((left, right) => right.sortKey - left.sortKey);
   }, [recordsById, selectedPerson, activeSourceFilter, normalizedQuery]);
 
+  const selectedStopRecords = useMemo(() => {
+    if (!investigation || !selectedStop) {
+      return [];
+    }
+
+    return investigation.evidenceRecords
+      .filter((record) => record.locationName === selectedStop.locationKey)
+      .filter((record) => matchesRecord(record))
+      .sort((left, right) => left.sortKey - right.sortKey);
+  }, [investigation, selectedStop, activeSourceFilter, normalizedQuery]);
+
+  const detailMode = selectedStop ? "stop" : "person";
+
   return (
     <main>
-      <div className="page-shell">
-        <section className="hero">
-          <p className="hero-kicker">Missing Podo: The Ankara Case</p>
-          <h1>Follow Podo&apos;s route. Compare the clues. Narrow the strongest lead.</h1>
-          <p>
-            This investigation view keeps the five Jotform sources intact, but reorganizes them
-            into one route, one suspect list, and one evidence panel so the likely answer is easier
-            to follow.
-          </p>
+      <div className="page-shell operation-shell">
+        <section className="top-console">
+          <div className="top-console-brand">
+            <p className="console-kicker">Missing Podo</p>
+            <h1>Investigation Console</h1>
+            <p className="console-copy">
+              Track the route, narrow the suspect, and inspect evidence without leaving the screen.
+            </p>
+          </div>
+
+          <div className="top-console-tools">
+            <label className="console-search">
+              <span className="visually-hidden">Search evidence</span>
+              <input
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by person, location, or clue"
+                type="search"
+                value={searchQuery}
+              />
+            </label>
+
+            <div className="console-filter-row" role="toolbar" aria-label="Source filters">
+              {SOURCE_FILTERS.map((filter) => (
+                <button
+                  aria-pressed={filter.key === activeSourceFilter}
+                  className={`filter-chip ${filter.key === activeSourceFilter ? "filter-chip-active" : ""}`}
+                  key={filter.key}
+                  onClick={() => setActiveSourceFilter(filter.key)}
+                  type="button"
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            {investigation ? (
+              <div className="health-pill-row" aria-label="Source health">
+                {investigation.sourceHealth.map((source) => (
+                  <SourceHealthPill key={source.sourceName} source={source} />
+                ))}
+              </div>
+            ) : null}
+          </div>
         </section>
 
         {loading ? (
-          <div className="status-banner loading">Loading Jotform sources...</div>
+          <div className="status-banner status-banner-loading">Loading Jotform sources...</div>
         ) : null}
 
-        {error ? <div className="status-banner error">{error}</div> : null}
+        {error ? <div className="status-banner status-banner-error">{error}</div> : null}
 
         {!loading && !error && data && investigation ? (
           <>
-            <section className="summary-grid">
-              <SummaryCard
-                label="Last confirmed sighting"
-                value={
-                  investigation.summary.routeEnd
-                    ? `${investigation.summary.routeEnd.locationName}, ${investigation.summary.routeEnd.timestamp.split(" ")[1]}`
-                    : "Unavailable"
-                }
-                detail="Last confirmed route endpoint in the current evidence set."
-              />
-              <SummaryCard
-                label="Last seen with"
-                value={investigation.summary.lastSeenWith?.displayName || "Unavailable"}
-                detail="The person attached to Podo’s final confirmed co-presence record."
-              />
-              <SummaryCard
-                label="Strongest lead"
-                value={findPersonDisplayName(investigation.people, investigation.summary.primarySuspectSlug)}
-                detail="Highest deterministic suspicion score from linked route evidence."
-              />
-              <SummaryCard
-                label="Cleared false lead"
-                value={findPersonDisplayName(investigation.people, investigation.summary.clearedLeadSlug)}
-                detail="A person who looked suspicious at first but is weakened by later evidence."
-              />
-            </section>
-
-            <section className="source-health">
-              {investigation.sourceHealth.map((source) => (
-                <article
-                  className={`source-health-item ${source.status === "error" ? "source-health-item-error" : ""}`}
-                  key={source.sourceName}
-                >
-                  <p className="source-health-name">{source.sourceName}</p>
-                  <p className="source-health-copy">
-                    {source.status === "error"
-                      ? source.error
-                      : `${source.count} records | ${source.questionCount} questions`}
-                  </p>
-                </article>
-              ))}
-            </section>
-
-            <section className="controls-row">
-              <label className="search-field">
-                <span className="visually-hidden">Search evidence</span>
-                <input
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search by person, location, or clue"
-                  type="search"
-                  value={searchQuery}
-                />
-              </label>
-              <div className="chip-row">
-                {SOURCE_FILTERS.map((filter) => (
-                  <button
-                    className={`filter-chip ${filter.key === activeSourceFilter ? "filter-chip-active" : ""}`}
-                    key={filter.key}
-                    onClick={() => setActiveSourceFilter(filter.key)}
-                    type="button"
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="investigation-grid">
-              <aside className="surface suspect-surface">
-                <div className="surface-header">
-                  <h2>People and Leads</h2>
-                  <p>Sorted by evidence strength, not alphabetically.</p>
+            <section className="operation-grid">
+              <aside className="operation-panel people-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="panel-label">People</p>
+                    <h2>Suspects and witnesses</h2>
+                  </div>
+                  <span className="panel-meta">{visiblePeople.length} visible</span>
                 </div>
-                <div className="suspect-list">
+
+                <div className="panel-scroll person-list">
                   {visiblePeople.length === 0 ? (
                     <p className="empty-text">No people match the current search.</p>
                   ) : (
                     visiblePeople.map((person) => (
                       <button
-                        className={`suspect-row ${selectedPerson?.slug === person.slug ? "suspect-row-active" : ""}`}
+                        aria-pressed={selectedPerson?.slug === person.slug}
+                        className={`person-row ${selectedPerson?.slug === person.slug ? "person-row-active" : ""}`}
                         key={person.slug}
-                        onClick={() => setSelectedPersonSlug(person.slug)}
+                        onClick={() => {
+                          setSelectedPersonSlug(person.slug);
+                          setSelectedStopLocationKey(null);
+                        }}
                         type="button"
                       >
-                        <div className="suspect-row-top">
-                          <h3>{person.displayName}</h3>
+                        <div className="person-row-top">
+                          <div className="person-row-title">
+                            <AvatarStack people={[{ slug: person.slug, displayName: person.displayName }]} size="small" />
+                            <div>
+                              <h3>{person.displayName}</h3>
+                              <p className="person-row-subtitle">
+                                {person.lastSeenWithPodoAt
+                                  ? `${person.lastSeenWithPodoLocation} • ${person.lastSeenWithPodoAt}`
+                                  : "No direct linked moment with Podo"}
+                              </p>
+                            </div>
+                          </div>
                           <span className={`role-pill role-pill-${person.role}`}>{ROLE_LABELS[person.role]}</span>
                         </div>
-                        <p className="suspect-score">Suspicion score: {person.suspicionScore}</p>
-                        <p className="suspect-reason">
-                          {person.keyReasons[0] ||
-                            person.counterEvidence[0] ||
-                            "Connected to the route without a strong suspicious clue."}
-                        </p>
-                        <p className="suspect-meta">
-                          {person.lastSeenWithPodoAt
-                            ? `Last linked with Podo at ${person.lastSeenWithPodoLocation} (${person.lastSeenWithPodoAt})`
-                            : "No direct linked moment with Podo."}
-                        </p>
+
+                        <div className="person-row-bottom">
+                          <p className="person-score">Score {person.suspicionScore}</p>
+                          <p className="person-row-reason">
+                            {person.keyReasons[0] ||
+                              person.counterEvidence[0] ||
+                              "Connected to the route without a strong suspicious clue."}
+                          </p>
+                        </div>
                       </button>
                     ))
                   )}
                 </div>
               </aside>
 
-              <section className="surface timeline-surface">
-                <div className="surface-header">
-                  <h2>Podo Route Timeline</h2>
-                  <p>
-                    {normalizedQuery || activeSourceFilter !== "all"
-                      ? "Filtered evidence view. Suspect clues can appear here when they match the current search."
-                      : "Default route view. Focused on records that directly mention or involve Podo."}
-                  </p>
+              <section className="operation-panel route-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="panel-label">Metro line</p>
+                    <h2>Podo route timeline</h2>
+                  </div>
+                  <span className="panel-meta">
+                    {selectedPerson ? `Focus: ${selectedPerson.displayName}` : "All route stops"}
+                  </span>
                 </div>
-                <div className="timeline-stop-list">
+
+                <div className="panel-scroll metro-list">
                   {visibleTimelineStops.length === 0 ? (
-                    <p className="empty-text">No timeline entries match the current filters.</p>
+                    <p className="empty-text">No timeline stops match the current filters.</p>
                   ) : (
-                    visibleTimelineStops.map((stop) => (
-                      <section className="timeline-stop" key={`${stop.locationKey}-${stop.startAt}`}>
-                        <div className="timeline-stop-header">
-                          <div>
-                            <p className="eyebrow">Location stop</p>
-                            <h3>{stop.locationName}</h3>
+                    visibleTimelineStops.map((stop) => {
+                      const dimmed =
+                        selectedPersonSlug.length > 0 &&
+                        !stop.people.some((person) => person.slug === selectedPersonSlug);
+                      const isSelected = selectedStopLocationKey === stop.locationKey;
+                      const previewEntry = stop.entries[0];
+
+                      return (
+                        <button
+                          aria-pressed={isSelected}
+                          className={`metro-stop ${isSelected ? "metro-stop-active" : ""} ${dimmed ? "metro-stop-dimmed" : ""} ${stop.isCriticalStop ? "metro-stop-critical" : ""}`}
+                          key={`${stop.locationKey}-${stop.startAt}`}
+                          onClick={() => setSelectedStopLocationKey(stop.locationKey)}
+                          type="button"
+                        >
+                          <span className="metro-rail" aria-hidden="true">
+                            <span
+                              className={`metro-bubble ${stop.isCriticalStop ? "metro-bubble-critical" : ""}`}
+                            />
+                          </span>
+
+                          <div className="metro-content">
+                            <div className="metro-top-row">
+                              <div>
+                                <p className="metro-label">Stop</p>
+                                <p className="metro-title">{stop.locationName}</p>
+                              </div>
+                              <p className="metro-range">{formatStopRange(stop)}</p>
+                            </div>
+
+                            <div className="metro-meta-row">
+                              <AvatarStack people={stop.people} size="small" />
+                              <p className="metro-count">
+                                {stop.entries.length} evidence item{stop.entries.length > 1 ? "s" : ""}
+                              </p>
+                            </div>
+
+                            {previewEntry ? (
+                              <p className="metro-preview">{previewEntry.summary}</p>
+                            ) : null}
                           </div>
-                          <p className="timeline-stop-range">
-                            {stop.startAt === stop.endAt ? stop.startAt : `${stop.startAt} → ${stop.endAt}`}
-                          </p>
-                        </div>
-                        <div className="timeline-stop-entries">
-                          {stop.entries.map((entry) => {
-                            const record = recordsById.get(entry.recordId);
-
-                            if (!record) {
-                              return null;
-                            }
-
-                            const dimmed = selectedPerson
-                              ? !record.people.some((person) => person.slug === selectedPerson.slug)
-                              : false;
-
-                            return <EvidenceItem dimmed={dimmed} key={entry.recordId} record={record} />;
-                          })}
-                        </div>
-                      </section>
-                    ))
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </section>
 
-              <aside className="surface detail-surface">
-                {selectedPerson ? (
-                  <div className="detail-stack">
-                    <div className="surface-header">
-                      <h2>{selectedPerson.displayName}</h2>
-                      <p>Evidence-driven reading of why this person matters.</p>
+              <aside className="operation-panel detail-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="panel-label">{detailMode === "stop" ? "Stop detail" : "Person detail"}</p>
+                    <h2>
+                      {detailMode === "stop"
+                        ? selectedStop?.locationName || "Stop detail"
+                        : selectedPerson?.displayName || "Person detail"}
+                    </h2>
+                  </div>
+                  {detailMode === "stop" ? (
+                    <button
+                      className="clear-stop-button"
+                      onClick={() => setSelectedStopLocationKey(null)}
+                      type="button"
+                    >
+                      Back to person
+                    </button>
+                  ) : (
+                    <span className="panel-meta">
+                      {selectedPerson ? ROLE_LABELS[selectedPerson.role] : "No selection"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="panel-scroll detail-scroll">
+                  {detailMode === "stop" && selectedStop ? (
+                    <div className="detail-stack">
+                      <section className="detail-section detail-section-elevated">
+                        <p className="detail-copy">{formatStopRange(selectedStop)}</p>
+                        <AvatarStack people={selectedStop.people} />
+                      </section>
+
+                      <section className="detail-section">
+                        <h3>Evidence at this stop</h3>
+                        {selectedStopRecords.length === 0 ? (
+                          <p className="empty-text">No stop evidence matches the current filters.</p>
+                        ) : (
+                          <div className="evidence-list">
+                            {selectedStopRecords.map((record) => (
+                              <EvidenceCard key={record.id} record={record} />
+                            ))}
+                          </div>
+                        )}
+                      </section>
                     </div>
+                  ) : selectedPerson ? (
+                    <div className="detail-stack">
+                      <section className="detail-section detail-section-elevated">
+                        <div className="detail-person-header">
+                          <AvatarStack
+                            people={[{ slug: selectedPerson.slug, displayName: selectedPerson.displayName }]}
+                          />
+                          <div>
+                            <span className={`role-pill role-pill-${selectedPerson.role}`}>
+                              {ROLE_LABELS[selectedPerson.role]}
+                            </span>
+                            <p className="detail-score">Suspicion score: {selectedPerson.suspicionScore}</p>
+                          </div>
+                        </div>
 
-                    <div className="detail-header">
-                      <span className={`role-pill role-pill-${selectedPerson.role}`}>
-                        {ROLE_LABELS[selectedPerson.role]}
-                      </span>
-                      <p className="detail-score">Suspicion score: {selectedPerson.suspicionScore}</p>
-                    </div>
-
-                    <section className="detail-section">
-                      <h3>Aliases and coverage</h3>
-                      <div className="person-chip-row">
-                        {selectedPerson.aliases.map((alias) => (
-                          <span className="person-chip" key={`${selectedPerson.slug}-${alias}`}>
-                            {alias}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="detail-copy">
-                        Sources: {selectedPerson.sourceCoverage.join(", ")} | Direct Podo links:{" "}
-                        {selectedPerson.directPodoTouches}
-                      </p>
-                    </section>
-
-                    <section className="detail-section">
-                      <h3>Why this person stands out</h3>
-                      {selectedPerson.keyReasons.length === 0 ? (
-                        <p className="empty-text">
-                          No strong suspicious clue. This person is mostly supporting context.
-                        </p>
-                      ) : (
-                        <ul className="detail-list">
-                          {selectedPerson.keyReasons.map((reason) => (
-                            <li key={`${selectedPerson.slug}-${reason}`}>{reason}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </section>
-
-                    <section className="detail-section">
-                      <h3>Counter-evidence</h3>
-                      {selectedPerson.counterEvidence.length === 0 ? (
-                        <p className="empty-text">No strong counter-evidence recorded.</p>
-                      ) : (
-                        <ul className="detail-list">
-                          {selectedPerson.counterEvidence.map((reason) => (
-                            <li key={`${selectedPerson.slug}-${reason}`}>{reason}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </section>
-
-                    <section className="detail-section">
-                      <h3>Last linked moment with Podo</h3>
-                      {selectedPerson.lastSeenWithPodoAt ? (
-                        <p className="detail-copy">
-                          {selectedPerson.lastSeenWithPodoAt} at {selectedPerson.lastSeenWithPodoLocation}
-                        </p>
-                      ) : (
-                        <p className="empty-text">No direct Podo-linked moment was detected.</p>
-                      )}
-                    </section>
-
-                    <section className="detail-section">
-                      <h3>Linked evidence</h3>
-                      {selectedPersonRecords.length === 0 ? (
-                        <p className="empty-text">No linked evidence matches the current filters.</p>
-                      ) : (
-                        <div className="linked-evidence-stack">
-                          {selectedPersonRecords.map((record) => (
-                            <article className="linked-evidence-item" key={record.id}>
-                              <div className="linked-evidence-top">
-                                <p className="timeline-time">{record.timestamp}</p>
-                                <span className="timeline-badge">{SOURCE_TYPE_LABELS[record.sourceType]}</span>
-                              </div>
-                              <h4>{record.summary}</h4>
-                              <p className="detail-copy">{record.detailText || record.summary}</p>
-                              <p className="linked-evidence-meta">
-                                {record.locationName} | {record.provenance.sourceName} | Submission{" "}
-                                {record.provenance.submissionId}
-                              </p>
-                            </article>
+                        <div className="detail-chip-group">
+                          {selectedPerson.aliases.map((alias) => (
+                            <span className="detail-chip" key={`${selectedPerson.slug}-${alias}`}>
+                              {alias}
+                            </span>
                           ))}
                         </div>
-                      )}
-                    </section>
-                  </div>
-                ) : (
-                  <p className="empty-text">No person selected.</p>
-                )}
+
+                        <p className="detail-copy">
+                          Sources: {selectedPerson.sourceCoverage.join(", ")} | Direct Podo links:{" "}
+                          {selectedPerson.directPodoTouches}
+                        </p>
+                      </section>
+
+                      <section className="detail-section">
+                        <h3>Why this person stands out</h3>
+                        {selectedPerson.keyReasons.length === 0 ? (
+                          <p className="empty-text">No strong suspicious clue. This person is mostly supporting context.</p>
+                        ) : (
+                          <ul className="detail-list">
+                            {selectedPerson.keyReasons.map((reason) => (
+                              <li key={`${selectedPerson.slug}-${reason}`}>{reason}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+
+                      <section className="detail-section">
+                        <h3>Counter-evidence</h3>
+                        {selectedPerson.counterEvidence.length === 0 ? (
+                          <p className="empty-text">No strong counter-evidence recorded.</p>
+                        ) : (
+                          <ul className="detail-list">
+                            {selectedPerson.counterEvidence.map((reason) => (
+                              <li key={`${selectedPerson.slug}-${reason}`}>{reason}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+
+                      <section className="detail-section">
+                        <h3>Last linked moment with Podo</h3>
+                        {selectedPerson.lastSeenWithPodoAt ? (
+                          <p className="detail-copy">
+                            {selectedPerson.lastSeenWithPodoAt} at {selectedPerson.lastSeenWithPodoLocation}
+                          </p>
+                        ) : (
+                          <p className="empty-text">No direct Podo-linked moment was detected.</p>
+                        )}
+                      </section>
+
+                      <section className="detail-section">
+                        <h3>Linked evidence</h3>
+                        {selectedPersonRecords.length === 0 ? (
+                          <p className="empty-text">No linked evidence matches the current filters.</p>
+                        ) : (
+                          <div className="evidence-list">
+                            {selectedPersonRecords.map((record) => (
+                              <EvidenceCard key={record.id} record={record} />
+                            ))}
+                          </div>
+                        )}
+                      </section>
+                    </div>
+                  ) : (
+                    <p className="empty-text">No detail context is selected.</p>
+                  )}
+                </div>
               </aside>
             </section>
 

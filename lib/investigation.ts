@@ -53,6 +53,8 @@ export type TimelineStop = {
   coordinates: string;
   startAt: string;
   endAt: string;
+  people: LinkedPersonRef[];
+  isCriticalStop: boolean;
   entries: TimelineEntry[];
 };
 
@@ -513,6 +515,7 @@ export function buildTimelineStops(
     const locationKey = record.locationName;
     const existingStop = groupedStops.get(locationKey);
     const entry = buildTimelineEntry(record, criticalRecordId);
+    const stopPeople = uniquePeople(record.people);
 
     if (!existingStop) {
       groupedStops.set(locationKey, {
@@ -521,12 +524,15 @@ export function buildTimelineStops(
         coordinates: record.coordinates,
         startAt: record.timestamp,
         endAt: record.timestamp,
+        people: stopPeople,
+        isCriticalStop: record.locationName === "Ankara Kalesi",
         entries: [entry],
       });
       continue;
     }
 
     existingStop.endAt = record.timestamp;
+    existingStop.people = uniquePeople([...existingStop.people, ...stopPeople]);
     existingStop.entries.push(entry);
   }
 
