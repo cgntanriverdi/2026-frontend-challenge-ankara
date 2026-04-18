@@ -15,20 +15,15 @@ This app turns the five Jotform data sources into a single investigation dashboa
 npm install
 ```
 
-2. Create `.env.local` from `.env.example` and set:
-
-```bash
-JOTFORM_API_KEY=your_jotform_api_key
-JOTFORM_API_BASE_URL=https://api.jotform.com
-```
-
-3. Start the dev server:
+2. Start the dev server:
 
 ```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000)
+3. Open [http://localhost:3000](http://localhost:3000)
+
+The challenge repo already includes a working `.env.local` so it runs immediately after install.
 
 ## What This MVP Includes
 - Fetches only these 5 sources:
